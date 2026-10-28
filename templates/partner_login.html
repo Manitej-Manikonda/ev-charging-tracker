@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CPO Partner Portal</title>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); width: 100%; max-width: 400px; }
+  h2 { margin-top: 0; color: #0f172a; font-size: 24px; }
+  p { color: #64748b; font-size: 14px; margin-bottom: 25px; }
+  .form-group { margin-bottom: 20px; }
+  label { display: block; margin-bottom: 5px; color: #475569; font-size: 13px; font-weight: bold; }
+  input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+  button { width: 100%; padding: 14px; background: #0f172a; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; }
+  .err { color: #ef4444; font-size: 13px; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>Partner Portal</h2>
+    <p>Manage your charging station hardware and view real-time revenue.</p>
+    <div class="form-group"><label>Partner Username</label><input type="text" id="username" placeholder="e.g., partner_ST01"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="password" placeholder="e.g., password123"></div>
+    <button id="loginBtn">Sign In to Dashboard</button>
+    <div id="loginErr" class="err"></div>
+    
+    <p style="text-align:center; margin-top:20px; font-size:13px; color:#64748b;">
+      Want to register your charging station? <a href="/partner/register" style="color:#0f172a; font-weight:bold; text-decoration:none;">Register here</a>
+    </p>
+  </div>
+  <script>
+    document.getElementById("loginBtn").onclick = async () => {
+      const u = document.getElementById("username").value;
+      const p = document.getElementById("password").value;
+      const err = document.getElementById("loginErr");
+      const res = await fetch("/api/partner/login", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({username: u, password: p}) });
+      const data = await res.json();
+      if(data.success) window.location.href = data.redirect;
+      else { err.textContent = data.message; err.style.display = "block"; }
+    };
+  </script>
+</body>
+</html>

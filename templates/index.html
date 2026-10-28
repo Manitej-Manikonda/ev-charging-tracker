@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Driver Console</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" type="image/png" href="MRUH_no_BG.png">
+<style>
+  /* STRICT NO-WRAP FLEXBOX LAYOUT */
+  main.console-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 15px !important;
+    padding: 15px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+  .console-left { width: 280px !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; }
+  .console-right { width: 320px !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; }
+  .console-center { flex-grow: 1 !important; min-width: 0 !important; display: flex !important; flex-direction: column !important; }
+  .console-center .panel, .map-wrap { display: flex !important; flex-direction: column !important; flex-grow: 1 !important; }
+  #map { flex-grow: 1 !important; min-height: 500px !important; }
+</style>
+</head>
+<body>
+<div class="app-shell" id="dashboard">
+  <header class="topbar">
+    <div class="brand"><div class="brand-icon">ϟ</div><div><h1>EVSB&IT</h1><p>DAA <span>·</span> Smart Routing & Booking</p></div></div>
+    <div class="account-actions">
+      <div class="user-status-badge" id="userStatusBadge">Strikes: <span id="strikeCount" style="color:#ff3945; font-weight:bold;">0</span>/5 | Fines: ₹<span id="penaltyAmount" style="color:#ffbd32; font-weight:bold;">0</span></div>
+    </div>
+  </header>
+
+  <section id="blockedBanner" class="alert-banner hidden" style="background:#4b0005; border-color:#ff3945; text-align:center;">⚠️ ACCOUNT SUSPENDED: 5 consecutive no-show violations. You are blocked from booking slots until fines are cleared.</section>
+  <section id="alertBanner" class="alert-banner hidden"></section>
+
+  <main class="console-grid">
+    <div class="console-left">
+      <section class="panel vehicle-panel">
+        <div class="panel-head"><h2>♧&nbsp; VEHICLE STATUS</h2><span class="status-pill" id="vehicleStatus">Idle</span></div>
+        <div class="panel-body vehicle-body" style="min-height: auto;">
+          <span class="label">Vehicle ID</span><strong class="vehicle-id" id="vehicleId">XX 00 XX 0000</strong>
+          <span class="model">Volt Compact 40 · 40 kWh</span>
+          <div class="battery-head"><span>▣ Battery</span><strong id="batteryText">72%</strong></div>
+          <div class="battery-track"><div id="batteryBar" class="battery-fill"></div></div>
+          <div class="range-line">Range ≈ <span id="rangeText">144 km</span></div>
+          <div class="location-box"><span class="location-pin">⌖</span><div><strong id="locationName">Loading...</strong><span id="coords">17.44450, 78.37720</span></div></div>
+          <span class="model" id="batteryState">Healthy</span>
+        </div>
+      </section>
+      <section class="panel simulation-panel">
+        <div class="panel-head"><h2>◔&nbsp; HARDWARE SIMULATION</h2></div>
+        <div class="sim-body">
+          <div class="sim-grid">
+            <button class="sim-btn" id="liveGpsBtn" style="grid-column: 1/-1; background:#1e293b; color:#00d9ff; border:1px solid #00d9ff;">⌖&nbsp; Enable Real GPS</button>
+            <button class="sim-btn" id="startBtn">▷&nbsp; Drive</button>
+            <button class="sim-btn" id="stopBtn">□&nbsp; Stop</button>
+            <button class="sim-btn" id="incBtn" style="display:none;">＋&nbsp; Charge</button>
+            <button class="sim-btn" id="decBtn">−&nbsp; Drain</button>
+            <button class="sim-btn" id="startChargingBtn" style="display:none;">⌁&nbsp; Plug In</button>
+            <button class="sim-btn" id="completeBtn" style="display:none;">✓&nbsp; Checkout</button>
+            <button class="sim-btn reset" id="resetBtn" style="grid-column: 1/-1;">↻&nbsp; Reset Telemetry</button>
+          </div>
+          <button class="emergency-demo-btn" id="zeroBtn">⚠&nbsp; TRIGGER 0% BATTERY FAILURE</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="console-center">
+      <section class="panel map-panel">
+        <div class="map-wrap">
+          <span id="mapMode" class="map-mode">Live GPS & Routing</span>
+          <div id="map"></div>
+          <div class="map-badges"><span class="map-badge best">ϟ Best</span><span class="map-badge available">Available</span><span class="map-badge full">Full / Maintenance</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="console-right">
+      <section class="panel recommendation-panel">
+        <div class="panel-head"><h2>♜&nbsp; ACTION HUB</h2></div>
+        <div class="recommend-body" style="min-height: auto;">
+          <div id="recommendationEmpty" class="empty">Scanning local grid...<br>Click 'Find Best' below.</div>
+          <div id="recommendationContent" class="hidden">
+            <div class="recommend-title-row"><h3 id="bestName">Station</h3><div class="score-large"><b id="bestScore">0</b><span>/ 100</span></div></div>
+            <div class="tag-row"><span class="tag cyan" id="bestCharger">Fast</span><span class="tag green" id="bestGuard">Guard Available</span></div>
+            <div class="metric-row"><div><span>Dist</span><b id="bestDistance">--</b></div><div><span>Time</span><b id="bestTravel">--</b></div><div><span>Slots</span><b id="bestSlots">--</b></div><div><span>Wait</span><b id="bestTime">--</b></div></div>
+            <div class="recommend-actions" style="margin-top:20px;">
+              <button class="outline-btn" id="navigateBtn" style="flex:1;">⌁&nbsp; Map Route</button>
+              <button class="outline-btn go-spot-btn" id="goSpotBtn" style="flex:1;">📍&nbsp; Teleport</button>
+            </div>
+            <div id="bookingWidget" class="booking-widget hidden">
+              <div id="bookingStatusText" style="line-height:1.4;">Session booked!<span id="bookingCountdown" style="display:block; font-size:24px; font-family:monospace; color:#b6ff3f; margin-top:5px;">30:00</span></div>
+              <button id="demoExpireBtn" class="sim-btn reset" style="width:100%; margin-top:12px; font-size:11px; min-height:30px;">Fast-Forward Expire</button>
+            </div>
+          </div>
+          <button class="main-action" id="findBtn" style="margin-top:20px;">ϟ&nbsp; Run DAA Algorithm</button>
+        </div>
+      </section>
+      <section class="panel notifications-panel">
+        <div class="panel-head"><h2>♧&nbsp; SYSTEM LOGS</h2><button class="clear-btn" id="clearNotifications">Clear</button></div>
+        <div id="notifications" class="notifications" style="height: 250px;"></div>
+      </section>
+    </div>
+  </main>
+
+  <section class="panel comparison-panel" style="margin: 20px;">
+    <div class="panel-head">
+      <h2>ϟ&nbsp; LIVE GRID COMPARISON</h2>
+      <select id="sortSelect" class="sort-select"><option value="score">Sort: Score</option><option value="distance">Sort: Distance</option></select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>STATION</th><th>DISTANCE</th><th>AVAILABILITY</th><th>CHARGER</th><th>CHARGE TIME</th><th>GUARD</th><th>D</th><th>A</th><th>T</th><th>B</th><th>C</th><th>SCORE</th><th>ACTION</th></tr></thead>
+        <tbody id="stationTable"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- PAST CHARGING HISTORY -->
+    <div class="view-section" style="margin-top: 40px;">
+      <h2>Past 7 Days Charging History</h2>
+      <p style="color:#64748b; font-size:14px; margin-bottom:15px;">Your recent charging sessions, energy usage, and billing receipts.</p>
+      
+      <table class="grid-table" style="width: 100%; text-align: left;">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Station Name</th>
+            <th>Total Time</th>
+            <th>Energy (kWh)</th>
+            <th>Amount Paid</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody">
+          <tr><td colspan="5" style="text-align:center; padding:20px;">Loading history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+<div id="paymentModalOverlay" class="emergency-overlay hidden">
+  <div class="payment-modal" style="background:#0f161c; border:1px solid #1e2936; border-radius:12px; padding:30px; width:400px; max-width:90%; color:white; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+    <h2 style="margin-top:0; border-bottom:1px solid #1e2936; padding-bottom:15px; display:flex; align-items:center; gap:10px;">Session Invoice</h2>
+    <table class="invoice-table" style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:14px;">
+      <tr><td style="padding:10px 0; border-bottom:1px dashed #1e2936;">Energy (<span id="invEnergy">0</span> kWh) @ ₹15/kWh</td><td style="text-align:right;">₹<span id="invEnergyCost">0</span></td></tr>
+      <tr><td style="padding:10px 0; border-bottom:1px dashed #1e2936;">Active Time (<span id="invActive">0</span> min) @ ₹2/min</td><td style="text-align:right;">₹<span id="invActiveCost">0</span></td></tr>
+      <tr><td style="padding:10px 0; border-bottom:1px dashed #1e2936;">Idle Time (<span id="invIdle">0</span> min) @ ₹5/min</td><td style="text-align:right;">₹<span id="invIdleCost">0</span></td></tr>
+      <tr><td style="padding:10px 0; border-bottom:1px dashed #1e2936;">Fixed Session Base Fee</td><td style="text-align:right;">₹20.00</td></tr>
+      <tr class="inv-total" style="font-weight:bold; color:#b6ff3f; font-size:18px;"><td style="padding:15px 0 0;">Total Payable</td><td style="text-align:right; padding:15px 0 0;">₹<span id="invTotal">0</span></td></tr>
+    </table>
+    <button class="main-action" id="confirmPaymentBtn" style="width:100%; padding:15px; background:#b6ff3f; color:#080d10; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Confirm Payment</button>
+  </div>
+</div> 
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=15"></script>
+</body>
+</html>

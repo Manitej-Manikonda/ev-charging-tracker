@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CPO Station Registration - Partner Hub</title>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; margin: 0; padding: 40px 20px; display: flex; justify-content: center; }
+  .container { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); width: 100%; max-width: 650px; padding: 40px; }
+  h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+  p { color: #64748b; font-size: 14px; margin-bottom: 25px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .form-group { margin-bottom: 15px; }
+  label { display: block; margin-bottom: 5px; color: #475569; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+  input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+  button { width: 100%; padding: 14px; background: #0f172a; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; margin-top: 15px; }
+  .err { color: #ef4444; font-size: 13px; margin-top: 10px; display: none; font-weight: bold; }
+  .switch-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h2>🏢 Register New Charging Station (CPO)</h2>
+    <p>Onboard your charging infrastructure to the live multi-tenant routing network.</p>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Portal Username</label><input type="text" id="pUser" placeholder="e.g. partner_gachibowli" required></div>
+      <div class="form-group"><label>Portal Password</label><input type="password" id="pPass" placeholder="••••••••" required></div>
+    </div>
+
+    <div class="form-group"><label>Charging Station Name</label><input type="text" id="pName" placeholder="e.g. Mindspace Mega EV Park" required></div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Latitude</label><input type="number" id="pLat" step="0.0001" value="17.4380"></div>
+      <div class="form-group"><label>Longitude</label><input type="number" id="pLon" step="0.0001" value="78.3800"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Charger Connector Type</label>
+        <select id="pType"><option value="Fast Charger">Fast Charger (DC)</option><option value="CCS">CCS-2</option><option value="Type 2">Type 2 (AC)</option></select>
+      </div>
+      <div class="form-group"><label>Total Port Slots</label><input type="number" id="pSlots" value="4" min="1" max="20"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Power Output (kW)</label><input type="number" id="pKw" value="60"></div>
+      <div class="form-group"><label>Avg Session (Minutes)</label><input type="number" id="pMin" value="30"></div>
+    </div>
+
+    <div class="switch-row">
+      <input type="checkbox" id="pGuard" checked style="width: auto;">
+      <label for="pGuard" style="margin: 0; text-transform: none; font-size: 13px;">Physical On-Site Security Guard Present</label>
+    </div>
+
+    <button id="pRegBtn">Onboard Station to Network</button>
+    <div id="pErr" class="err"></div>
+
+    <p style="text-align: center; margin-top: 20px; font-size: 13px;">Already a registered partner? <a href="/partner" style="color:#2563eb; font-weight: bold; text-decoration: none;">Sign in here</a></p>
+  </div>
+
+  <script>
+    document.getElementById("pRegBtn").onclick = async () => {
+      const payload = {
+        username: document.getElementById("pUser").value, password: document.getElementById("pPass").value, station_name: document.getElementById("pName").value,
+        lat: document.getElementById("pLat").value, lon: document.getElementById("pLon").value, charger_type: document.getElementById("pType").value,
+        total_slots: document.getElementById("pSlots").value, speed_kw: document.getElementById("pKw").value, charging_minutes: document.getElementById("pMin").value, guard_present: document.getElementById("pGuard").checked
+      };
+      const errBox = document.getElementById("pErr"); errBox.style.display = "none";
+      try {
+        const res = await fetch("/api/partner/register", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) window.location.href = data.redirect;
+        else { errBox.textContent = data.message; errBox.style.display = "block"; }
+      } catch (e) { errBox.textContent = "Server connection error."; errBox.style.display = "block"; }
+    };
+  </script>
+</body>
+</html>

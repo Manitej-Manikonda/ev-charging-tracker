@@ -1,0 +1,5 @@
+Flask>=3.0,<4.0
+requests>=2.31,<3.0
+
+# Optional: install for real OTP/SMS delivery via Twilio
+# twilio>=9.0,<10.0

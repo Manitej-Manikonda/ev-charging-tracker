@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPO Station OS</title>
+<style>
+  :root { --primary: #0f172a; --accent: #3b82f6; --bg: #f0f4f8; --text: #1e293b; --green: #10b981; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; overflow: hidden; color: var(--text); }
+  .sidebar { width: 260px; background: var(--primary); color: white; display: flex; flex-direction: column; }
+  .brand { padding: 25px 20px; font-size: 20px; font-weight: bold; border-bottom: 1px solid #1e293b; }
+  .brand span { color: #94a3b8; font-size: 12px; display: block; margin-top: 5px; font-weight: normal; }
+  .nav-menu { flex-grow: 1; padding: 20px 0; }
+  .nav-item { padding: 15px 25px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 500; transition: 0.2s; color: #94a3b8; }
+  .nav-item:hover, .nav-item.active { background: #1e293b; color: white; border-left: 4px solid var(--accent); }
+  .logout-btn { padding: 20px; text-align: center; background: #0b1120; cursor: pointer; color: #ef4444; font-weight: bold; }
+  .main-area { flex-grow: 1; padding: 40px; overflow-y: auto; }
+  .view-section { display: none; animation: fadeIn 0.3s ease; }
+  .view-section.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  h2 { margin-top: 0; color: var(--primary); font-size: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+  .kpi-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+  .kpi-card h3 { margin: 0 0 10px; font-size: 13px; color: #64748b; text-transform: uppercase; }
+  .kpi-card .value { font-size: 32px; font-weight: bold; color: var(--primary); }
+  .leaderboard-row { display: flex; align-items: center; justify-content: space-between; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); margin-bottom: 15px; }
+  .leaderboard-rank { font-size: 28px; font-weight: bold; color: var(--accent); width: 60px; }
+  .leaderboard-stat { flex: 1; display: flex; flex-direction: column; }
+  .leaderboard-stat span { font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+  .leaderboard-stat strong { font-size: 18px; color: var(--primary); }
+  .energy-tracker { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); margin-bottom: 20px; }
+  .progress-wrap { background: #e2e8f0; border-radius: 20px; height: 30px; overflow: hidden; margin: 20px 0; position: relative; }
+  .progress-fill { background: linear-gradient(90deg, #10b981, #3b82f6); height: 100%; width: 0%; transition: width 1s ease; }
+  .progress-text { position: absolute; top: 0; left: 15px; line-height: 30px; color: white; font-weight: bold; font-size: 13px; text-shadow: 0px 1px 2px rgba(0,0,0,0.5); }
+  .chart-container { display: flex; align-items: flex-end; gap: 15px; height: 200px; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; } 
+  .chart-bar { width: 100%; background: var(--accent); border-radius: 6px 6px 0 0; min-height: 5px; transition: height 0.5s ease; position: relative; }
+  .chart-bar:hover::after { content: attr(data-val) ' kWh'; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #0f172a; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+  .chart-label { margin-top: 10px; font-size: 12px; color: #64748b; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+  th, td { text-align: left; padding: 15px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; color: #64748b; font-size: 12px; text-transform: uppercase; }
+  select, button { padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 15px; margin-top: 10px; width: 100%; max-width: 300px; }
+  button.primary { background: var(--accent); color: white; border: none; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="brand">CPO Control <span id="headStationName">Loading...</span></div>
+    <div class="nav-menu">
+      <div class="nav-item active" onclick="switchTab('analytics')">Station Analytics</div>
+      <div class="nav-item" onclick="switchTab('energy')">Energy Trends</div>
+      <div class="nav-item" onclick="switchTab('hardware')">Hardware Control</div>
+      <div class="nav-item" onclick="switchTab('customers')">Customer Insights</div>
+    </div>
+    <div class="logout-btn" onclick="logout()">Sign Out</div>
+  </div>
+
+  <div class="main-area">
+    <div id="analytics" class="view-section active">
+      <h2>Station Analytics</h2>
+      <div class="kpi-grid">
+        <div class="kpi-card"><h3>Total Revenue</h3><div class="value">₹<span id="kpiRev">0</span></div></div>
+        <div class="kpi-card"><h3>Sessions (Today)</h3><div class="value" id="kpiSessions">0</div></div>
+        <div class="kpi-card"><h3>Available Slots</h3><div class="value"><span id="kpiSlots">0</span>/<span id="kpiTotalSlots">0</span></div></div>
+      </div>
+      <h3>Recent Customer Logbook</h3>
+      <table>
+        <!-- THE FIX: Added Number Plate to Table Header -->
+        <thead><tr><th>Invoice ID</th><th>Date/Time</th><th>User Phone</th><th>Number Plate</th><th>Energy</th><th>Paid</th></tr></thead>
+        <tbody id="logbookBody"></tbody>
+      </table>
+    </div>
+
+    <div id="energy" class="view-section">
+      <h2>Energy Consumption & Wellbeing</h2>
+      <div class="energy-tracker">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <h3 style="margin:0; color:#64748b;">Today's Grid Quota Used</h3>
+            <div style="font-size:36px; font-weight:bold; color:var(--primary);"><span id="energyToday">0</span> <span style="font-size:16px;">/ 500 kWh</span></div>
+          </div>
+          <div style="text-align:right; color:#10b981; font-weight:bold;" id="energyPercent">0%</div>
+        </div>
+        <div class="progress-wrap"><div class="progress-fill" id="energyBar"></div><div class="progress-text">Capacity Remaining</div></div>
+        <h3 style="margin-top:40px; color:#64748b;">7-Day Consumption Trend (kWh)</h3>
+        <div class="chart-container" id="energyChart"></div>
+      </div>
+    </div>
+
+    <div id="hardware" class="view-section">
+      <h2>Hardware Control</h2>
+      <p style="color:#64748b; font-size:14px; margin-bottom:25px;">Individually isolate and manage the operational status of each specific charging cable.</p>
+      
+      <!-- The grid where our dynamic port panels will spawn -->
+      <div class="kpi-grid" id="portGrid"></div>
+    </div>
+
+    <!-- VIEW 4: CUSTOMER INSIGHTS -->
+    <div id="customers" class="view-section">
+      <h2>Customer Insights & Leaderboard</h2>
+      <p style="color:#64748b; margin-bottom:25px;">Top customers ranked by visit frequency and charging behavior.</p>
+      
+      <!-- Rank #1 Row -->
+      <div class="leaderboard-row">
+        <div class="leaderboard-rank">#1</div>
+        <div class="leaderboard-stat">
+          <span>User Phone</span>
+          <strong>+91 72879*****</strong>
+        </div>
+        <div class="leaderboard-stat">
+          <span>No-Show Penalties</span>
+          <strong style="color:#10b981;">0</strong>
+        </div>
+        <div class="leaderboard-stat">
+          <span>Peak Charging Time</span>
+          <strong>18:00 - 21:00</strong>
+        </div>
+      </div>
+
+      <!-- Rank #2 Row -->
+      <div class="leaderboard-row">
+        <div class="leaderboard-rank">#2</div>
+        <div class="leaderboard-stat">
+          <span>User Phone</span>
+          <strong>+91 73965*****</strong>
+        </div>
+        <div class="leaderboard-stat">
+          <span>No-Show Penalties</span>
+          <strong style="color:#ef4444;">6</strong>
+        </div>
+        <div class="leaderboard-stat">
+          <span>Peak Charging Time</span>
+          <strong>06:00 - 08:00</strong>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- 🚨 SOS ALERTS SECTION (Hidden by default) 🚨 -->
+    <div id="sosContainer" style="display:none; background-color:#fee2e2; border-left: 6px solid #ef4444; padding:20px; margin-bottom:30px; border-radius:8px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">
+        <h2 style="color:#b91c1c; margin-top:0; display:flex; align-items:center; gap:10px;">
+            ⚠️ CRITICAL SOS DISPATCH REQUESTS
+        </h2>
+        <p style="color:#991b1b; margin-top:-10px; margin-bottom:15px;">The following vehicles have depleted batteries and require immediate tow/mobile charging assistance.</p>
+        <div id="sosList"></div>
+    </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+    }
+
+    async function loadData() {
+      const res = await fetch('/api/partner/data');
+      if(res.status === 401) return window.location.href = '/partner'; 
+      const data = await res.json();
+      
+      const st = data.station;
+      document.getElementById('headStationName').textContent = `${st.name} (ID: ${st.id})`;
+      document.getElementById('kpiRev').textContent = data.total_revenue;
+      document.getElementById('kpiSessions').textContent = data.sessions.filter(s => new Date(s.created_at).toDateString() === new Date().toDateString()).length;
+      document.getElementById('kpiSlots').textContent = st.available_slots;
+      document.getElementById('kpiTotalSlots').textContent = st.total_slots;
+      // THE FIX: Dynamically generate a panel for EVERY slot
+      const ports = st.port_statuses || Array(st.total_slots).fill("Online");
+      let portsHTML = '';
+      
+      ports.forEach((status, i) => {
+        const color = status === 'Online' ? '#10b981' : (status === 'Maintenance' ? '#f59e0b' : '#ef4444');
+        portsHTML += `
+          <div class="kpi-card" style="border-top: 4px solid ${color};">
+            <h3>Port ${i + 1}</h3>
+            <div style="margin: 15px 0;">
+              <span style="font-weight:bold; color:${color}; font-size:18px;">${status}</span>
+            </div>
+            <select id="portStatus_${i}" style="margin-bottom:10px; padding:8px; font-size:13px; width:100%;">
+              <option value="Online" ${status==='Online'?'selected':''}>🟢 Online</option>
+              <option value="Maintenance" ${status==='Maintenance'?'selected':''}>🟠 Maintenance</option>
+              <option value="Damaged" ${status==='Damaged'?'selected':''}>🔴 Damaged</option>
+            </select>
+            <button class="primary" style="padding:8px; font-size:13px; width:100%;" onclick="updatePortStatus(${i})">Update Port ${i + 1}</button>
+          </div>
+        `;
+      });
+      document.getElementById('portGrid').innerHTML = portsHTML;
+      
+      // THE FIX: Render the Number Plate in the table row
+      document.getElementById('logbookBody').innerHTML = data.sessions.map(s => `
+        <tr>
+          <td><b>${s.invoice_id}</b></td>
+          <td style="color:#64748b; font-size:13px;">${new Date(s.created_at).toLocaleString()}</td>
+          <td>${s.user_phone}</td>
+          <td><span style="background:#e2e8f0; color:#0f172a; padding:4px 8px; border-radius:4px; font-weight:bold; font-family:monospace;">${s.license_plate || 'UNKNOWN'}</span></td>
+          <td>${s.energy_kwh.toFixed(1)} kWh</td>
+          <td><b style="color:var(--green);">₹${s.total_cost.toFixed(2)}</b></td>
+        </tr>
+      `).join('');
+
+      const todayUsed = data.today_energy || 0;
+      const quota = data.daily_quota || 500;
+      const trendData = data.trend_data || []; 
+      const percent = Math.min((todayUsed / quota) * 100, 100).toFixed(1);
+      
+      document.getElementById('energyToday').textContent = todayUsed.toFixed(1);
+      document.getElementById('energyPercent').textContent = `${percent}% Used`;
+      const bar = document.getElementById('energyBar');
+      bar.style.width = `${percent}%`;
+      if(percent > 80) bar.style.background = "#ef4444"; 
+      
+      const energyValues = trendData.length > 0 ? trendData.map(d => d.energy) : [0];
+      let maxEnergy = Math.max(...energyValues, 150); 
+      const staticHistory = [135.2, 89.5, 110.1, 145.8, 95.0, 120.4]; 
+
+      let chartHTML = '';
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for(let i=6; i>=0; i--) {
+        let d = new Date(); d.setDate(d.getDate() - i);
+        let dateStr = d.toISOString().split('T')[0];
+        let dayData = trendData.find(x => x.day === dateStr);
+        let energyVal = dayData ? dayData.energy : (i === 0 ? todayUsed : staticHistory[i-1]);
+        let heightPct = Math.min((energyVal / maxEnergy) * 100, 100);
+        let dayName = i === 0 ? 'Today' : days[d.getDay()];
+
+        chartHTML += `
+          <div class="chart-col">
+            <div class="chart-bar" style="height:${heightPct}%; background:${i===0 ? '#10b981' : '#3b82f6'};" data-val="${energyVal.toFixed(1)}"></div>
+            <div class="chart-label">${dayName}</div>
+          </div>`;
+      }
+      document.getElementById('energyChart').innerHTML = chartHTML;
+    }
+    
+    async function updatePortStatus(index) {
+      const status = document.getElementById(`portStatus_${index}`).value;
+      const res = await fetch('/api/partner/hardware', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({ port_index: index, status: status }) 
+      });
+      if(res.ok) { 
+        // Instantly reload to show the new color and status
+        loadData(); 
+      }
+    }
+    
+    async function logout() {
+      await fetch('/api/partner/logout', {method: 'POST'}); window.location.reload();
+    }
+    
+    loadData(); setInterval(loadData, 5000);
+
+    // --- LIVE SOS POLLING LOGIC ---
+    function renderSOS(alerts) {
+        const container = document.getElementById("sosContainer");
+        const list = document.getElementById("sosList");
+        
+        if (!alerts || alerts.length === 0) {
+            container.style.display = "none";
+            return;
+        }
+        
+        container.style.display = "block";
+        list.innerHTML = alerts.map(a => `
+            <div style="background:#fff; padding:15px; margin-bottom:10px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; border: 1px solid #fca5a5;">
+                <div>
+                    <span style="color:#64748b; font-size:12px;">Alert ID: #${a.id} • ${new Date(a.created_at + 'Z').toLocaleTimeString()}</span><br>
+                    <strong style="color:#0f172a; font-size:18px;">Stranded EV Data</strong><br>
+                    <span style="color:#334155; font-size:15px;">Phone: <b>${a.user_phone}</b> | License Plate: <b style="color:#10b981;">${a.user_plate}</b></span><br>
+                    <a href="https://www.google.com/maps?q=${a.lat},${a.lon}" target="_blank" style="display:inline-block; margin-top:8px; color:#2563eb; text-decoration:none; font-weight:bold;">
+                        📍 Open Live Location in Google Maps
+                    </a>
+                </div>
+                <button onclick="resolveSOS(${a.id})" style="background:#ef4444; color:#fff; border:none; padding:12px 20px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px; transition: 0.2s;">
+                    Tow Dispatched (Resolve)
+                </button>
+            </div>
+        `).join("");
+    }
+
+    async function fetchSOS() {
+        try {
+            const res = await fetch("/api/partner/sos?t=" + Date.now(), { cache: "no-store" });
+            const data = await res.json();
+            if (data.success) renderSOS(data.alerts);
+        } catch(e) { console.error("SOS Fetch Failed", e); }
+    }
+
+    async function resolveSOS(id) {
+        await fetch("/api/partner/sos/resolve", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({alert_id: id})
+        });
+        fetchSOS(); // Instantly refresh the UI
+    }
+
+    // Ping the database for new SOS requests every 4 seconds
+    setInterval(fetchSOS, 4000);
+    fetchSOS(); // Run immediately on page load
+  </script>
+</body>
+</html>
